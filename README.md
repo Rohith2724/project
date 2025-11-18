@@ -1,29 +1,97 @@
-        {
-            // Filename: MVRngControllerTests.cs
-using System.Reflection;
-using System.Security.Claims;
-using com.gaig.mc.MVR.Controllers;
-using com.gaig.mc.MVR.Records;
-using com.gaig.mc.MVR.Services;
-using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.Extensions.Logging.Abstractions;
-using Moq;
-using NUnit.Framework;
-using static com.gaig.mc.MVR.Utilities.UserDtoSecurityExtensions;
-
-namespace com.gaig.mc.MVR.test.Controllers
-{
-    [TestFixture]
-    public class MVRngControllerTests
-    {
-        private MVRngController TestSubject { get; set; } = null!;
-        private Mock<IMVRngService> MockMvrService { get; set; } = null!;
-        private Mock<IMaintCenterService> MockMaintCenterService { get; set; } = null!;
 
         [SetUp]
-        public void SetUp()
+    [Test]
+public void AddLicenseRule_Controller_ReturnsResult_Success()
+{
+    // Arrange
+    var licenseRuleDto = new LicenseRuleDTO { stateCode = "NY", licenseRule = "Test Rule" };
+    var expectedResult = new Result { errorCode = 0, errorMessage = "" };
+
+    // The controller calls mvrngService.AddLicenseRule(licenseRuleDTO, User.UserDto())
+    MockMvrService.Setup(s => s.AddLicenseRule(It.IsAny<LicenseRuleDTO>(), It.IsAny<UserDto>()))
+                  .Returns(expectedResult);
+
+    // Act
+    var response = TestSubject.AddLicenseRule(licenseRuleDto);
+
+    // Assert
+    Assert.That(response.StatusCode, Is.EqualTo(200));
+    var obj = response as ObjectResult;
+    Assert.That(obj, Is.Not.Null);
+    Assert.That(obj!.Value, Is.InstanceOf<Result>());
+    Assert.That(((Result)obj.Value).errorCode, Is.EqualTo(0));
+    MockMvrService.Verify(s => s.AddLicenseRule(It.Is<LicenseRuleDTO>(lr => lr.stateCode == "NY" && lr.licenseRule == "Test Rule"), It.IsAny<UserDto>()), Times.Once);
+}
+
+[Test]
+public void AddLicenseRule_Controller_ReturnsErrorResult_OnException()
+{
+    // Arrange
+    var licenseRuleDto = new LicenseRuleDTO { stateCode = "NY", licenseRule = "Test Rule" };
+    var exMessage = "boom!";
+    MockMvrService.Setup(s => s.AddLicenseRule(It.IsAny<LicenseRuleDTO>(), It.IsAny<UserDto>()))
+                  .Throws(new Exception(exMessage));
+
+    // Act
+    var response = TestSubject.AddLicenseRule(licenseRuleDto);
+
+    // Assert
+    Assert.That(response.StatusCode, Is.EqualTo(200));
+    var obj = response as ObjectResult;
+    Assert.That(obj, Is.Not.Null);
+    Assert.That(obj!.Value, Is.InstanceOf<Result>());
+    var res = (Result)obj.Value;
+    Assert.That(res.errorCode, Is.EqualTo(1));
+    Assert.That(res.errorMessage, Is.EqualTo(exMessage));
+    MockMvrService.Verify(s => s.AddLicenseRule(It.IsAny<LicenseRuleDTO>(), It.IsAny<UserDto>()), Times.Once);
+}
+
+[Test]
+public void SaveStateLicenseTooltip_Controller_ReturnsResult_Success()
+{
+    // Arrange
+    var stateInfoDto = new StateInfo { stateCode = "CA", licenseFormatDesc = "desc" };
+    var expected = new Result { errorCode = 0, errorMessage = "" };
+
+    // Controller calls mvrngService.SaveStateLicenseTooltip(stateInfoDTO, User.UserDto())
+    MockMvrService.Setup(s => s.SaveStateLicenseTooltip(It.IsAny<StateInfo>(), It.IsAny<UserDto>()))
+                  .Returns(expected);
+
+    // Act
+    var response = TestSubject.SaveStateLicenseTooltip(stateInfoDto);
+
+    // Assert
+    Assert.That(response.StatusCode, Is.EqualTo(200));
+    var obj = response as ObjectResult;
+    Assert.That(obj, Is.Not.Null);
+    Assert.That(obj!.Value, Is.InstanceOf<Result>());
+    Assert.That(((Result)obj.Value).errorCode, Is.EqualTo(0));
+    MockMvrService.Verify(s => s.SaveStateLicenseTooltip(It.Is<StateInfo>(st => st.stateCode == "CA" && st.licenseFormatDesc == "desc"), It.IsAny<UserDto>()), Times.Once);
+}
+
+[Test]
+public void SaveStateLicenseTooltip_Controller_ReturnsErrorResult_OnException()
+{
+    // Arrange
+    var stateInfoDto = new StateInfo { stateCode = "CA", licenseFormatDesc = "desc" };
+    var exMessage = "save failed";
+    MockMvrService.Setup(s => s.SaveStateLicenseTooltip(It.IsAny<StateInfo>(), It.IsAny<UserDto>()))
+                  .Throws(new Exception(exMessage));
+
+    // Act
+    var response = TestSubject.SaveStateLicenseTooltip(stateInfoDto);
+
+    // Assert
+    Assert.That(response.StatusCode, Is.EqualTo(200));
+    var obj = response as ObjectResult;
+    Assert.That(obj, Is.Not.Null);
+    Assert.That(obj!.Value, Is.InstanceOf<Result>());
+    var res = (Result)obj.Value;
+    Assert.That(res.errorCode, Is.EqualTo(1));
+    Assert.That(res.errorMessage, Is.EqualTo(exMessage));
+    MockMvrService.Verify(s => s.SaveStateLicenseTooltip(It.IsAny<StateInfo>(), It.IsAny<UserDto>()), Times.Once);
+}
+    public void SetUp()
         {
             MockMvrService = new Mock<IMVRngService>();
             MockMaintCenterService = new Mock<IMaintCenterService>();
