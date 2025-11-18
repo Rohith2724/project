@@ -1,4 +1,5 @@
-// Filename: MVRngControllerTests.cs
+        {
+            // Filename: MVRngControllerTests.cs
 using System.Reflection;
 using System.Security.Claims;
 using com.gaig.mc.MVR.Controllers;
@@ -17,14 +18,197 @@ namespace com.gaig.mc.MVR.test.Controllers
     [TestFixture]
     public class MVRngControllerTests
     {
-        private MVRngController TestSubject { get; set; }
-        private Mock<IMVRngService> MockMvrService { get; set; }
-        private Mock<IMaintCenterService> MockMaintCenterService { get; set; }
+        private MVRngController TestSubject { get; set; } = null!;
+        private Mock<IMVRngService> MockMvrService { get; set; } = null!;
+        private Mock<IMaintCenterService> MockMaintCenterService { get; set; } = null!;
 
         [SetUp]
         public void SetUp()
         {
             MockMvrService = new Mock<IMVRngService>();
+            MockMaintCenterService = new Mock<IMaintCenterService>();
+            var assemblyName = new AssemblyName("MVRWebApi") { Version = new Version("3.0.0.1") };
+
+            TestSubject = new MVRngController(
+                new NullLogger<MVRngController>(),
+                MockMvrService.Object,
+                MockMaintCenterService.Object,
+                assemblyName
+            );
+
+            SetupUserContext(); // default context for tests
+        }
+
+        private void SetupUserContext(string? vid = "testUser", string? role = "EDIT_ROLE")
+        {
+            var claims = new List<Claim>
+            {
+                new Claim("user_attributes", $"{{\"VID\": [\"{vid}\"] }}"),
+                new Claim("name", "Test Name"),
+                new Claim("email", "test@gaig.com"),
+                new Claim("given_name", "Test"),
+                new Claim(ClaimTypes.Role, role ?? "EDIT_ROLE")
+            };
+            var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
+            var principal = new ClaimsPrincipal(identity);
+
+            var ctx = new DefaultHttpContext { User = principal };
+            TestSubject.ControllerContext = new ControllerContext { HttpContext = ctx };
+        }
+
+        // -------------------------
+        // Previously covered tests...
+        // (keep your earlier tests here as needed)
+        // -------------------------
+
+        [Test]
+        public void PostBulkOrder_CallsServiceAndReturnsOk()
+        {
+            // Arrange
+            var id = "bulk1";
+            var newOrder = new NewOrderDTO
+            {
+                businessUnit = "BU1",
+                profitCenter = "PC1",
+                trackingId = "T1",
+                drivers = new List<NewDriverDTO>
+                {
+                    new() { firstName = "A", lastName = "B", stateCode = "NY", dateOfBirth = DateTime.UtcNow, licenseNumber = "L1", requestId = "R1" }
+                }
+            };
+            var expected = new Result { errorCode = 0, errorMessage = "" };
+            // Service method signature: PostBulkOrder(string id, NewOrderDTO bulkOrderDTO, UserDto userDto)
+            MockMvrService.Setup(s => s.PostBulkOrder(id, It.IsAny<NewOrderDTO>(), It.IsAny<UserDto>())).Returns(expected);
+
+            // Act
+            var res = TestSubject.PostBulkOrder(id, newOrder);
+
+            // Assert
+            Assert.That(res.StatusCode, Is.EqualTo(200));
+            var obj = res as ObjectResult;
+            Assert.That(obj, Is.Not.Null);
+            Assert.That(obj!.Value, Is.EqualTo(expected));
+            MockMvrService.Verify(s => s.PostBulkOrder(id, It.IsAny<NewOrderDTO>(), It.IsAny<UserDto>()), Times.Once);
+        }
+
+        [Test]
+        public void GetAllFilteredOrders_CallsServiceAndReturnsOk()
+        {
+            // Arrange
+            var id = "o1";
+            var filter = new NewOrderFilterDTO
+            {
+                requestedBy = "U1",
+                businessUnit = "BU1",
+                startDate = DateTime.UtcNow.AddDays(-7),
+                endDate = DateTime.UtcNow,
+                drivers = new List<Driver> { new() { firstName = "D1", lastName = "L1", stateCode = "NY" } }
+            };
+            var expectedList = new List<MotorVehicleRecord> { new() };
+            MockMvrService.Setup(s => s.GetAllFilteredOrders(id, filter)).Returns(expectedList);
+
+            // Act
+            var res = TestSubject.GetAllFilteredOrders(id, filter);
+
+            // Assert
+            Assert.That(res.StatusCode, Is.EqualTo(200));
+            var obj = res as ObjectResult;
+            Assert.That(obj!.Value, Is.EqualTo(expectedList));
+            MockMvrService.Verify(s => s.GetAllFilteredOrders(id, filter), Times.Once);
+        }
+
+        [Test]
+        public void GetAllInvoiceOrders_CallsServiceAndReturnsOk()
+        {
+            // Arrange
+            var id = "inv1";
+            var filter = new NewOrderFilterDTO
+            {
+                requestedBy = "U2",
+                businessUnit = "BU2",
+                drivers = new List<Driver>()
+            };
+            var expectedList = new List<MotorVehicleRecord> { new() };
+            MockMvrService.Setup(s => s.GetAllInvoiceOrders(id, filter)).Returns(expectedList);
+
+            // Act
+            var res = TestSubject.GetAllInvoiceOrders(id, filter);
+
+            // Assert
+            Assert.That(res.StatusCode, Is.EqualTo(200));
+            var obj = res as ObjectResult;
+            Assert.That(obj!.Value, Is.EqualTo(expectedList));
+            MockMvrService.Verify(s => s.GetAllInvoiceOrders(id, filter), Times.Once);
+        }
+
+        [Test]
+        public void GetAllFilteredDrivers_CallsServiceAndReturnsOk()
+        {
+            // Arrange
+            var id = "drv1";
+            var driverFilter = new NewDriverFilter
+            {
+                requestedBy = "U3",
+                businessUnit = "BU3",
+                includeInactives = false,
+                drivers = new List<Driver> { new() { firstName = "F", lastName = "L", stateCode = "CA" } }
+            };
+            var expected = new List<MotorVehicleRecord> { new() };
+            MockMvrService.Setup(s => s.GetAllFilteredDrivers(id, driverFilter)).Returns(expected);
+
+            // Act
+            var res = TestSubject.GetAllFilteredDrivers(id, driverFilter);
+
+            // Assert
+            Assert.That(res.StatusCode, Is.EqualTo(200));
+            var obj = res as ObjectResult;
+            Assert.That(obj!.Value, Is.EqualTo(expected));
+            MockMvrService.Verify(s => s.GetAllFilteredDrivers(id, driverFilter), Times.Once);
+        }
+
+        [Test]
+        public void UpdateDriverStatus_CallsServiceAndReturnsOk()
+        {
+            // Arrange
+            var id = "upd1";
+            var dto = new DriverUpdateRecord { requestId = "R1", status = "OK" };
+            var expected = new Result { errorCode = 0 };
+            MockMvrService.Setup(s => s.UpdateDriverStatus(id, dto)).Returns(expected);
+
+            // Act
+            var res = TestSubject.UpdateDriverStatus(id, dto);
+
+            // Assert
+            Assert.That(res.StatusCode, Is.EqualTo(200));
+            var obj = res as ObjectResult;
+            Assert.That(obj!.Value, Is.EqualTo(expected));
+            MockMvrService.Verify(s => s.UpdateDriverStatus(id, dto), Times.Once);
+        }
+
+        [Test]
+        public void PushPdfToMyFile_CallsServiceAndReturnsOk()
+        {
+            // Arrange
+            var id = "pf1";
+            var myFile = new MyFileExport { mvrId = "1", pdf = new byte[] { 1, 2 } };
+            var expected = new Result { errorCode = 0 };
+            MockMvrService.Setup(s => s.PushPdfToMyFile(id, myFile)).Returns(expected);
+
+            // Act
+            var res = TestSubject.PushPdfToMyFile(id, myFile);
+
+            // Assert
+            Assert.That(res.StatusCode, Is.EqualTo(200));
+            var obj = res as ObjectResult;
+            Assert.That(obj!.Value, Is.EqualTo(expected));
+            MockMvrService.Verify(s => s.PushPdfToMyFile(id, myFile), Times.Once);
+        }
+
+        // You can add more tests here for exceptional paths for above endpoints (throwing in service),
+        // if you want to exercise controller catch blocks for each method.
+    }
+}
+ = new Mock<IMVRngService>();
             MockMaintCenterService = new Mock<IMaintCenterService>();
             AssemblyName assemblyName = new("MVRWebApi") { Version = new Version("3.0.0.1") };
 
